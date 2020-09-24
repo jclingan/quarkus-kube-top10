@@ -1,0 +1,156 @@
+= Quarkus Kubernetes Top 10 features
+
+This quarkus project is intended to follow the _QuarkusTop 10 Kubernetes
+Features_ session that was delivered at j4k.io 2020 virtual conference.
+
+IMPORTANT: To run this project on your own, follow the setup instructions in the link:yaml[yaml] directory.
+
+== Top 10 features
+
+Top 10 features shown include:
+
+1. One-step Kubernetes deployment
+1. Remote Live-coding in Kubernetes
+1. Direct ConfigMap and Secrets access
+1. Health endpoints
+1. Kuberentes Client API
+1. OpenMetrics support
+1. OpenTracing support
+1. One-step KNative deployment
+1. Functions as a Service with Funqy
+1. Efficiency
+- Fast startup time
+- Minimum memory utilization
+
+== Additional features beyond session
+This project includes a few features/details that I couldn't fit in the 45 minute slot,
+or even the 52 minutes I took to record it (whups, I went over!). These include:
+
+* Kubernetes Secrets
+* Database access to show https://quarkus.io/guides/datasource[Agroal datasource] readiness check
+and Jaeger Tracing between the application and the database.
+* A custom liveness check, which makes the quarkus health-ui look a bit
+more populated.
+
+== Additional setup
+In addition to the setup from the yaml directory, the j4k configmap
+and j4k-secret map must be configured:
+
+.Create _j4k_ ConfigMap
+[source,shell script]
+----
+kubectl create cm j4k \
+    --from-literal=greeting="Hello ConfigMap"
+----
+
+.Create _j4k-secret_ secrets
+[source,shell script]
+----
+kubectl create secret \
+    generic \
+    j4k-secret \
+    --from-literal=db.user=quarkus \
+    --from-literal=db.pass=quarkus
+----
+
+== Deploy j4k application
+
+.Deploy the j4k application
+[source,shell script]
+----
+cd j4k
+mvn clean package -Dquarkus.kubernetes.deploy=true
+----
+
+== Get and test endpoint
+
+.Test application endpoint
+[source,shell script]
+----
+# We'll use this endpoint quite a bit, so let's save it
+URL=`minikube service --url j4k`
+
+# Get the persons (call database), should return JSON array of 3 persons
+curl -i ${URL}/person
+
+# Test the metrics endpoint
+curl ${URL}/metrics
+
+# Test the health endpoint
+curl ${URL}/health
+----
+
+Open ${URL}/health-ui to test Health UI.
+
+Open http://localhost:3000 to view grafana results
+
+Open http://localhost:16686 to view grafana results
+
+== Knative and Funqy
+
+IMPORTANT: This example uses quay.io, which creates a private image repository by default.
+If using Quay, go into the repository settings and make it a public repository.
+Using Docker Hub should work as-is.
+
+.Deploy Funqy
+[source,shell script]
+----
+cd funqy
+mvn \
+    clean \
+    package \
+    -Dquarkus.kubernetes.deploy=true \
+    -Dquarkus.kubernetes.deployment-target=knative
+----
+
+Once deployed, find the funqy service endpoint using the kn command line utility, and then curl
+the resulting endpoint. The URL shown will likely be differet than yours:
+
+.Invoke Funqy function
+[source,shell script]
+----
+kn service list
+curl -i http://funqy.default.10.98.14.70.nip.io/message
+----
+
+If you wait a minute or so, the number of pods will scale down to zero (using `kubectl get pods -w`).
+Scale up the pods dynamically by curling the endpoint again.
+
+== Startup time and memory consumption
+
+Get the name of any running pod using `kubectl get  pods` and run `kubectl logs <POD> funqy`.
+The startup time will show there.
+This example shows the function starting in 1.1 seconds using the JVM on loaded minikube instance:
+
+.Example log output
+[source,shell script]
+----
+exec java -Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager -XX:+ExitOnOutOfMemoryError -cp . -jar /deployments/app.jar
+__  ____  __  _____   ___  __ ____  ______
+ --/ __ \/ / / / _ | / _ \/ //_/ / / / __/
+ -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \
+--\___\_\____/_/ |_/_/|_/_/|_|\____/___/
+2020-09-24 19:49:22,995 INFO  [io.quarkus] (main) funqy 1.0.0-SNAPSHOT on JVM (powered by Quarkus 1.8.1.Final) started in 1.132s. Listening on: http://0.0.0.0:8080
+2020-09-24 19:49:22,997 INFO  [io.quarkus] (main) Profile prod activated.
+2020-09-24 19:49:22,997 INFO  [io.quarkus] (main) Installed features: [cdi, funqy-http, kubernetes]
+----
+
+To view RSS (memory usage) of the JVM instance, run:
+.Get RSS value
+[source,shell script]
+----
+ssh minikube
+ps -ef | grep app.jar  # get the process id
+ps -o rss,command <PID>
+----
+
+.Example output
+[source,shell script]
+----
+   RSS COMMAND
+118160 java -Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmana
+----
+
+The JVM process will use 118M of RAM.
+
+
