@@ -78,13 +78,25 @@ curl ${URL}/metrics
 
 # Test the health endpoint
 curl ${URL}/health
+
+# Test Kube Client API (get pods)
+curl ${URL}/kube/pods
+
+# Stream pod events
+curl ${URL}/kube/pods/stream
+
+# 2nd terminal
+kubectl scale --replicas 2 deployment/j4k
+
+# Wait for pods to come up, then scale back down
+kubectl scale --replicas 1 deployment/j4k
 ----
 
 Open ${URL}/health-ui to test Health UI.
 
-Open http://localhost:3000 to view grafana results
+Open http://localhost:3000 to view grafana dashboard
 
-Open http://localhost:16686 to view grafana results
+Open http://localhost:16686 to view Jaeger UI
 
 == Knative and Funqy
 
